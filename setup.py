@@ -40,6 +40,7 @@ setup(
     install_requires=[
         "setuptools",
         # -*- Extra requirements: -*-
+        'redis',
     ],
     extras_require={
         "test": [
