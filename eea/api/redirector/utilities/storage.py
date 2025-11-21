@@ -1,9 +1,11 @@
 """Storage utilities"""
+
 import os
 import logging
 from redis import Redis
 from zope.interface import implementer
 from eea.api.redirector.interfaces import IStorageUtility
+
 logger = logging.getLogger("eea.api.redirector")
 
 
