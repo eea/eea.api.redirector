@@ -8,7 +8,7 @@ eea.api.redirector
   :target: https://ci.eionet.europa.eu/job/eea/job/eea.api.redirector/job/master/display/redirect
   :alt: Master
 
-The eea.api.redirector is a Plone add-on
+The eea.api.redirector is a Plone add-on that extends Plone's native redirect system with Redis-based URL redirects, enabling high-performance redirect lookups and external redirect management.
 
 .. contents::
 
@@ -16,21 +16,67 @@ The eea.api.redirector is a Plone add-on
 Main features
 =============
 
-1. Easy to install/uninstall via Site Setup > Add-ons
-2.
-3.
+1. **Redis-backed redirects**: Store and retrieve URL redirects from Redis in addition to Plone's database
+2. **Fallback mechanism**: Automatically checks Redis when redirects are not found in Plone storage
+3. **Graceful error handling**: Redis connection failures don't break the redirection system
+4. **API endpoint support**: Intelligent hierarchical URL matching for API services and endpoints
+5. **Proper HTTP status codes**: Returns 410 Gone for permanently deleted resources
+6. **Redirect loop prevention**: Built-in protection against circular redirects
+7. **Easy configuration**: Simple environment variable setup for Redis connections
+8. **Non-intrusive**: Extends existing Plone functionality without replacing it
 
 
 Install
 =======
 
+* Via pip::
+
     $ pip install eea.api.redirector
 
-* Or via docker::
+* Or via docker-compose::
 
-    $ docker run --rm -p 8080:8080 -e ADDONS="eea.api.redirector" plone
+    $ docker-compose up -d
+
+This will start both Plone 6 and Redis services with the add-on pre-configured.
 
 * Install *eea.api.redirector* within Site Setup > Add-ons
+
+
+Configuration
+=============
+
+Redis connection settings are configured via environment variables:
+
+* ``REDIS_SERVER`` - Redis server hostname (default: ``localhost``)
+* ``REDIS_PORT`` - Redis server port (default: ``6379``)
+* ``REDIS_DB`` - Redis database index (default: ``0``)
+* ``REDIS_TIMEOUT`` - Connection timeout in seconds (default: ``5``)
+
+The included ``docker-compose.yml`` demonstrates how to configure these settings. The Plone service connects to Redis using::
+
+    environment:
+      REDIS_SERVER: "redis"
+      REDIS_PORT: "6379"
+      REDIS_DB: "0"
+      REDIS_TIMEOUT: "5"
+
+
+How it works
+============
+
+The add-on extends Plone's built-in ``plone.app.redirector`` by:
+
+1. **Storage Integration**: Adds a Redis storage utility alongside Plone's database storage
+2. **Fallback Lookup**: When a redirect is not found in Plone's database, it checks Redis
+3. **API Support**: Custom error handling for API endpoints with hierarchical URL matching
+4. **Non-blocking**: If Redis is unavailable, the system continues using Plone's standard redirects
+
+This design allows you to:
+
+* Manage redirects externally via Redis while maintaining Plone's UI-based redirect management
+* Share redirects across multiple Plone instances using a common Redis server
+* Achieve faster redirect lookups for high-traffic sites
+* Store temporary or dynamic redirects that don't need to persist in Plone's database
 
 
 Source code

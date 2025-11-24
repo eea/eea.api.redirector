@@ -4,9 +4,28 @@ import os
 import logging
 from redis import Redis
 from zope.interface import implementer
+from zope.component import getUtility
 from eea.api.redirector.interfaces import IStorageUtility
 
 logger = logging.getLogger("eea.api.redirector")
+
+
+def patched_redirection_storage_get(self, old_path, default=None):
+    """Get redirection target for old_path, checking also Redis.
+
+    We can not register a custom utility for this as all existing aliases would be lost.
+    """
+    value = self._old_get(old_path, default)
+    if value:
+        return value
+
+    # Check Redis storage
+    rs = getUtility(IStorageUtility)
+    value = rs.get(old_path)
+    if value:
+        logger.debug("Found redis value for %s: %s", old_path, value)
+        return value.decode("utf-8")
+    return default
 
 
 @implementer(IStorageUtility)

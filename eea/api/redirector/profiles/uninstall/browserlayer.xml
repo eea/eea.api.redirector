@@ -2,6 +2,7 @@
 <layers>
   <layer
       name="eea.api.redirector"
-      remove="true"
+      interface="eea.api.redirector.interfaces.IEeaApiRedirectorLayer"
+      remove="True"
       />
 </layers>
