@@ -13,8 +13,7 @@ class ErrorHandling(BaseErrorHandling):
     """Custom error handling for API requests."""
 
     def find_redirect_if_view_or_service(self, old_path_elements, storage):
-        """Check if the requested URL corresponds to a view or service
-        """
+        """Check if the requested URL corresponds to a view or service"""
         if len(old_path_elements) <= 1:
             return None
 
@@ -27,7 +26,7 @@ class ErrorHandling(BaseErrorHandling):
                 possible_obj_path
             )
 
-            if new_path == b'':
+            if new_path == b"":
                 self.request.response.setStatus(410, lock=1)
                 return None
 
