@@ -30,50 +30,56 @@ class RedisRedirectsPost(Service):
         redirects = data.get("items", [])
 
         if not redirects:
-            raise BadRequest("No items provided. Expected format: {'items': [{'path': '/old', 'redirect-to': '/new'}]}")
+            raise BadRequest(
+                "No items provided. Expected format: {'items': [{'path': '/old', 'redirect-to': '/new'}]}"
+            )
 
         failed_redirects = []
         success_count = 0
 
         for redirect in redirects:
             if not isinstance(redirect, dict):
-                failed_redirects.append({
-                    "redirect": str(redirect),
-                    "error": "Item must be a dictionary with 'path' and 'redirect-to' keys"
-                })
+                failed_redirects.append(
+                    {
+                        "redirect": str(redirect),
+                        "error": "Item must be a dictionary with 'path' and 'redirect-to' keys",
+                    }
+                )
                 continue
 
             path = redirect.get("path")
             target = redirect.get("redirect-to")
 
             if not path:
-                failed_redirects.append({
-                    "redirect": str(redirect),
-                    "error": "Missing 'path' field"
-                })
+                failed_redirects.append(
+                    {"redirect": str(redirect), "error": "Missing 'path' field"}
+                )
                 continue
 
             if target is None:
-                failed_redirects.append({
-                    "redirect": str(redirect),
-                    "error": "Missing 'redirect-to' field"
-                })
+                failed_redirects.append(
+                    {"redirect": str(redirect), "error": "Missing 'redirect-to' field"}
+                )
                 continue
 
             # Validate paths
             if not path.startswith("/"):
-                failed_redirects.append({
-                    "redirect": str(redirect),
-                    "error": f"Path must start with '/': {path}"
-                })
+                failed_redirects.append(
+                    {
+                        "redirect": str(redirect),
+                        "error": f"Path must start with '/': {path}",
+                    }
+                )
                 continue
 
             # Prevent self-redirects (but allow empty target for Gone)
             if target and path == target:
-                failed_redirects.append({
-                    "redirect": str(redirect),
-                    "error": "Path and target cannot be the same"
-                })
+                failed_redirects.append(
+                    {
+                        "redirect": str(redirect),
+                        "error": "Path and target cannot be the same",
+                    }
+                )
                 continue
 
             # Add to Redis
@@ -83,18 +89,18 @@ class RedisRedirectsPost(Service):
                     success_count += 1
                     logger.info(f"Added redirect: {path} -> {target}")
                 else:
-                    failed_redirects.append({
-                        "path": path,
-                        "redirect-to": target,
-                        "error": "Failed to set value in Redis"
-                    })
+                    failed_redirects.append(
+                        {
+                            "path": path,
+                            "redirect-to": target,
+                            "error": "Failed to set value in Redis",
+                        }
+                    )
             except Exception as err:
                 logger.exception(f"Error adding redirect {path} -> {target}: {err}")
-                failed_redirects.append({
-                    "path": path,
-                    "redirect-to": target,
-                    "error": str(err)
-                })
+                failed_redirects.append(
+                    {"path": path, "redirect-to": target, "error": str(err)}
+                )
 
         # Return appropriate response
         if failed_redirects:

@@ -34,7 +34,9 @@ class RedisRedirectsGet(Service):
                 return {
                     "@id": f"{self.context.absolute_url()}/@redirects{path}",
                     "path": path,
-                    "redirect-to": target.decode("utf-8") if isinstance(target, bytes) else target,
+                    "redirect-to": target.decode("utf-8")
+                    if isinstance(target, bytes)
+                    else target,
                 }
             else:
                 self.request.response.setStatus(404)

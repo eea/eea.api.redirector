@@ -30,7 +30,9 @@ class RedisRedirectsDelete(Service):
         redirects = data.get("items", [])
 
         if not redirects:
-            raise BadRequest("No items provided. Expected format: {'items': [{'path': '/old'}]}")
+            raise BadRequest(
+                "No items provided. Expected format: {'items': [{'path': '/old'}]}"
+            )
 
         failed_redirects = []
         success_count = 0
@@ -43,18 +45,16 @@ class RedisRedirectsDelete(Service):
                 path = redirect
 
             if not path:
-                failed_redirects.append({
-                    "redirect": str(redirect),
-                    "error": "Missing 'path' field"
-                })
+                failed_redirects.append(
+                    {"redirect": str(redirect), "error": "Missing 'path' field"}
+                )
                 continue
 
             # Validate path
             if not path.startswith("/"):
-                failed_redirects.append({
-                    "path": path,
-                    "error": f"Path must start with '/': {path}"
-                })
+                failed_redirects.append(
+                    {"path": path, "error": f"Path must start with '/': {path}"}
+                )
                 continue
 
             # Delete from Redis
@@ -66,21 +66,16 @@ class RedisRedirectsDelete(Service):
                 else:
                     # result is 0 if key didn't exist, None if error occurred
                     if result == 0:
-                        failed_redirects.append({
-                            "path": path,
-                            "error": "Path not found in Redis"
-                        })
+                        failed_redirects.append(
+                            {"path": path, "error": "Path not found in Redis"}
+                        )
                     else:
-                        failed_redirects.append({
-                            "path": path,
-                            "error": "Failed to delete from Redis"
-                        })
+                        failed_redirects.append(
+                            {"path": path, "error": "Failed to delete from Redis"}
+                        )
             except Exception as err:
                 logger.exception(f"Error deleting redirect {path}: {err}")
-                failed_redirects.append({
-                    "path": path,
-                    "error": str(err)
-                })
+                failed_redirects.append({"path": path, "error": str(err)})
 
         # Return appropriate response
         if failed_redirects:

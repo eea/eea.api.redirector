@@ -159,7 +159,14 @@ class RedisStorageUtility:
             logger.exception(err)
             return
 
-    def list_paginated(self, pattern="*", query=None, batch_size=25, batch_start=0, search_scope="old_url"):
+    def list_paginated(
+        self,
+        pattern="*",
+        query=None,
+        batch_size=25,
+        batch_start=0,
+        search_scope="old_url",
+    ):
         """List redirects from Redis with efficient pagination.
 
         Args:
@@ -174,7 +181,9 @@ class RedisStorageUtility:
         """
         # If there's a query, use query-specific method
         if query:
-            return self._list_with_query(pattern, query, batch_size, batch_start, search_scope)
+            return self._list_with_query(
+                pattern, query, batch_size, batch_start, search_scope
+            )
 
         # For non-query listing, collect all keys first
         matching_keys = []
@@ -189,15 +198,13 @@ class RedisStorageUtility:
                 # Collect all keys matching pattern (keys only, no values)
                 cursor = 0
                 while True:
-                    cursor, keys = conn.scan(
-                        cursor=cursor,
-                        match=pattern,
-                        count=1000
-                    )
+                    cursor, keys = conn.scan(cursor=cursor, match=pattern, count=1000)
 
                     for key in keys:
                         try:
-                            key_str = key.decode("utf-8") if isinstance(key, bytes) else key
+                            key_str = (
+                                key.decode("utf-8") if isinstance(key, bytes) else key
+                            )
                             matching_keys.append(key_str)
                         except Exception as err:
                             logger.warning(f"Error processing key {key}: {err}")
@@ -219,11 +226,17 @@ class RedisStorageUtility:
                     try:
                         value = conn.get(key_str)
                         if value is not None:
-                            value_str = value.decode("utf-8") if isinstance(value, bytes) else value
-                            items.append({
-                                "path": key_str,
-                                "redirect-to": value_str,
-                            })
+                            value_str = (
+                                value.decode("utf-8")
+                                if isinstance(value, bytes)
+                                else value
+                            )
+                            items.append(
+                                {
+                                    "path": key_str,
+                                    "redirect-to": value_str,
+                                }
+                            )
                     except Exception as err:
                         logger.warning(f"Error fetching value for key {key_str}: {err}")
                         continue
@@ -266,7 +279,13 @@ class RedisStorageUtility:
                 is_regex = False
                 regex_pattern = None
                 if query:
-                    if query.startswith("^") or query.endswith("$") or any(c in query for c in [".*", ".+", "[", "]", "(", ")", "|"]):
+                    if (
+                        query.startswith("^")
+                        or query.endswith("$")
+                        or any(
+                            c in query for c in [".*", ".+", "[", "]", "(", ")", "|"]
+                        )
+                    ):
                         is_regex = True
                         try:
                             regex_pattern = re.compile(query)
@@ -286,9 +305,7 @@ class RedisStorageUtility:
 
                 while True:
                     cursor, keys = conn.scan(
-                        cursor=cursor,
-                        match=search_pattern,
-                        count=1000
+                        cursor=cursor, match=search_pattern, count=1000
                     )
                     all_keys.extend(keys)
 
@@ -298,7 +315,7 @@ class RedisStorageUtility:
                 # Fetch all values in batches using Redis pipeline
                 BATCH_SIZE = 1000
                 for i in range(0, len(all_keys), BATCH_SIZE):
-                    batch_keys = all_keys[i:i+BATCH_SIZE]
+                    batch_keys = all_keys[i : i + BATCH_SIZE]
 
                     pipe = conn.pipeline()
                     for key in batch_keys:
@@ -308,8 +325,14 @@ class RedisStorageUtility:
                     # Filter on both keys and values
                     for key, value in zip(batch_keys, values):
                         if value is not None:
-                            key_str = key.decode("utf-8") if isinstance(key, bytes) else key
-                            value_str = value.decode("utf-8") if isinstance(value, bytes) else value
+                            key_str = (
+                                key.decode("utf-8") if isinstance(key, bytes) else key
+                            )
+                            value_str = (
+                                value.decode("utf-8")
+                                if isinstance(value, bytes)
+                                else value
+                            )
 
                             # Apply query filter on both old URL path (key) and new URL path (value)
                             if query:
@@ -317,8 +340,12 @@ class RedisStorageUtility:
                                 value_match = False
 
                                 if is_regex:
-                                    key_match = regex_pattern.search(key_str) is not None
-                                    value_match = regex_pattern.search(value_str) is not None
+                                    key_match = (
+                                        regex_pattern.search(key_str) is not None
+                                    )
+                                    value_match = (
+                                        regex_pattern.search(value_str) is not None
+                                    )
                                 else:
                                     key_match = query in key_str
                                     value_match = query in value_str
@@ -331,7 +358,9 @@ class RedisStorageUtility:
 
                             if not value_str or value_str.strip() == "":
                                 stats["gone"] += 1
-                            elif value_str.startswith("http://") or value_str.startswith("https://"):
+                            elif value_str.startswith(
+                                "http://"
+                            ) or value_str.startswith("https://"):
                                 stats["external"] += 1
                             else:
                                 stats["internal"] += 1
@@ -342,7 +371,9 @@ class RedisStorageUtility:
             logger.exception(err)
             return stats
 
-    def _list_with_query(self, pattern, query, batch_size, batch_start, search_scope="old_url"):
+    def _list_with_query(
+        self, pattern, query, batch_size, batch_start, search_scope="old_url"
+    ):
         """List redirects with query filter.
 
         Searches on old URL paths (keys), new URL paths (values), or both using pipelining.
@@ -370,7 +401,13 @@ class RedisStorageUtility:
                 is_regex = False
                 regex_pattern = None
                 if query:
-                    if query.startswith("^") or query.endswith("$") or any(c in query for c in [".*", ".+", "[", "]", "(", ")", "|"]):
+                    if (
+                        query.startswith("^")
+                        or query.endswith("$")
+                        or any(
+                            c in query for c in [".*", ".+", "[", "]", "(", ")", "|"]
+                        )
+                    ):
                         is_regex = True
                         try:
                             regex_pattern = re.compile(query)
@@ -391,9 +428,7 @@ class RedisStorageUtility:
                 # Note: When searching values, we need all keys. Pipelining makes this fast.
                 while True:
                     cursor, keys = conn.scan(
-                        cursor=cursor,
-                        match=search_pattern,
-                        count=1000
+                        cursor=cursor, match=search_pattern, count=1000
                     )
                     all_keys.extend(keys)
 
@@ -405,7 +440,7 @@ class RedisStorageUtility:
                 key_value_pairs = []
 
                 for i in range(0, len(all_keys), BATCH_SIZE):
-                    batch_keys = all_keys[i:i+BATCH_SIZE]
+                    batch_keys = all_keys[i : i + BATCH_SIZE]
 
                     pipe = conn.pipeline()
                     for key in batch_keys:
@@ -415,8 +450,14 @@ class RedisStorageUtility:
                     # Pair keys with values
                     for key, value in zip(batch_keys, values):
                         if value is not None:
-                            key_str = key.decode("utf-8") if isinstance(key, bytes) else key
-                            value_str = value.decode("utf-8") if isinstance(value, bytes) else value
+                            key_str = (
+                                key.decode("utf-8") if isinstance(key, bytes) else key
+                            )
+                            value_str = (
+                                value.decode("utf-8")
+                                if isinstance(value, bytes)
+                                else value
+                            )
                             key_value_pairs.append((key_str, value_str))
 
                 # Step 3: Filter based on search scope
@@ -429,7 +470,9 @@ class RedisStorageUtility:
                         if query:
                             if is_regex:
                                 key_match = regex_pattern.search(key_str) is not None
-                                value_match = regex_pattern.search(value_str) is not None
+                                value_match = (
+                                    regex_pattern.search(value_str) is not None
+                                )
                             else:
                                 key_match = query in key_str
                                 value_match = query in value_str
@@ -444,16 +487,20 @@ class RedisStorageUtility:
                                 should_include = key_match or value_match
 
                             if should_include:
-                                matching_items.append({
-                                    "path": key_str,
-                                    "redirect-to": value_str,
-                                })
+                                matching_items.append(
+                                    {
+                                        "path": key_str,
+                                        "redirect-to": value_str,
+                                    }
+                                )
                         else:
                             # No query, include all
-                            matching_items.append({
-                                "path": key_str,
-                                "redirect-to": value_str,
-                            })
+                            matching_items.append(
+                                {
+                                    "path": key_str,
+                                    "redirect-to": value_str,
+                                }
+                            )
 
                     except Exception as err:
                         logger.warning(f"Error processing key {key_str}: {err}")
