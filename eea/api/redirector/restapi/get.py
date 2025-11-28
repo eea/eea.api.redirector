@@ -5,7 +5,6 @@ from zope.component import getUtility
 from zope.interface import implementer
 from zope.publisher.interfaces import IPublishTraverse
 from eea.api.redirector.interfaces import IStorageUtility
-import json
 
 
 @implementer(IPublishTraverse)
