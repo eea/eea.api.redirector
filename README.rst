@@ -17,13 +17,17 @@ Main features
 =============
 
 1. **Redis-backed redirects**: Store and retrieve URL redirects from Redis in addition to Plone's database
-2. **Fallback mechanism**: Automatically checks Redis when redirects are not found in Plone storage
-3. **Graceful error handling**: Redis connection failures don't break the redirection system
-4. **API endpoint support**: Intelligent hierarchical URL matching for API services and endpoints
-5. **Proper HTTP status codes**: Returns 410 Gone for permanently deleted resources
-6. **Redirect loop prevention**: Built-in protection against circular redirects
-7. **Easy configuration**: Simple environment variable setup for Redis connections
-8. **Non-intrusive**: Extends existing Plone functionality without replacing it
+2. **REST API endpoints**: Full CRUD operations for managing redirects via ``@redirects`` endpoint
+3. **Control panel integration**: Web UI for managing redirects (requires volto-redirector frontend)
+4. **High-performance statistics**: Redis pipelining for calculating statistics on 100k+ redirects in ~2 seconds
+5. **Advanced search**: Search both old and new URLs using simple or regex patterns (e.g., ``^/publications``, ``example.com``)
+6. **Fallback mechanism**: Automatically checks Redis when redirects are not found in Plone storage
+7. **Graceful error handling**: Redis connection failures don't break the redirection system
+8. **API endpoint support**: Intelligent hierarchical URL matching for API services and endpoints
+9. **Proper HTTP status codes**: Returns 410 Gone for permanently deleted resources (empty redirect targets)
+10. **Redirect loop prevention**: Built-in protection against circular redirects
+11. **Easy configuration**: Simple environment variable setup for Redis connections
+12. **Non-intrusive**: Extends existing Plone functionality without replacing it
 
 
 Install
@@ -77,6 +81,154 @@ This design allows you to:
 * Share redirects across multiple Plone instances using a common Redis server
 * Achieve faster redirect lookups for high-traffic sites
 * Store temporary or dynamic redirects that don't need to persist in Plone's database
+
+
+REST API Endpoints
+==================
+
+The add-on provides REST API endpoints for managing redirects:
+
+**GET /@redirects**
+
+List redirects with pagination and search support.
+
+Query parameters:
+
+* ``q`` - Search query for old or new URL paths (supports regex: ``^/publications``, ``.*\.pdf$``)
+* ``b_size`` - Batch size (default: 25, options: 10, 25, 50, 100, 500, 1000)
+* ``b_start`` - Batch start offset (default: 0)
+* ``search_scope`` - Where to search: ``old_url`` (default), ``new_url``, or ``both``
+
+Example::
+
+    GET /Plone/@redirects?q=/themes&b_size=25&b_start=0&search_scope=old_url
+
+Response::
+
+    {
+      "@id": "http://localhost:8080/Plone/@redirects",
+      "items": [
+        {
+          "path": "/old-path",
+          "redirect-to": "/new-path"
+        },
+        {
+          "path": "/deleted-page",
+          "redirect-to": ""
+        }
+      ],
+      "items_total": 187520
+    }
+
+**GET /@redirects-statistics**
+
+Get statistics for redirects.
+
+Query parameters:
+
+* ``q`` - Optional search query to filter statistics
+
+Example::
+
+    GET /Plone/@redirects-statistics?q=/themes
+
+Response::
+
+    {
+      "@id": "http://localhost:8080/Plone/@redirects-statistics",
+      "statistics": {
+        "total": 187520,
+        "internal": 32935,
+        "external": 1611,
+        "gone": 152974
+      }
+    }
+
+Statistics categories:
+
+* **total** - Total number of redirects
+* **internal** - Redirects to internal paths (starting with ``/``)
+* **external** - Redirects to external URLs (starting with ``http://`` or ``https://``)
+* **gone** - Empty redirects for permanently deleted content (HTTP 410)
+
+**POST /@redirects**
+
+Add new redirects.
+
+Request body::
+
+    {
+      "items": [
+        {
+          "path": "/old-path",
+          "redirect-to": "/new-path"
+        },
+        {
+          "path": "/deleted-page",
+          "redirect-to": ""
+        }
+      ]
+    }
+
+Notes:
+
+* Empty ``redirect-to`` marks content as permanently deleted (returns HTTP 410 Gone)
+* Paths are automatically trimmed of whitespace
+* Self-redirects are prevented (path cannot equal redirect-to)
+
+Response::
+
+    {
+      "success": 2,
+      "failed": []
+    }
+
+**DELETE /@redirects**
+
+Remove redirects.
+
+Request body::
+
+    {
+      "items": [
+        {"path": "/old-path"}
+      ]
+    }
+
+Response::
+
+    {
+      "success": 1,
+      "failed": []
+    }
+
+
+Performance
+===========
+
+The add-on uses Redis pipelining for optimal performance:
+
+* **Statistics calculation**: ~2 seconds for 187,000 redirects (42x faster than individual GET operations)
+* **List pagination**: Scans keys only, fetches values only for requested page
+* **Search queries**: Uses Redis SCAN with pattern matching for efficient filtering
+
+Benchmark results (187,520 redirects):
+
+* SCAN all keys: 0.36s
+* Statistics with pipelining: 1.8s
+* Individual GET operations: 77s (not used)
+
+
+HTTP 410 Gone Support
+=====================
+
+Redirects with empty targets (``redirect-to: ""``) return HTTP 410 Gone status, indicating the resource has been permanently deleted. This is the proper HTTP status code for removed content that will not return.
+
+The frontend (volto-redirector) can display a custom 410 Gone page with:
+
+* Information about the deleted resource
+* Link to Wayback Machine for archived versions
+* Helpful navigation options
 
 
 Source code

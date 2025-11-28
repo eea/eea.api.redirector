@@ -1,6 +1,7 @@
 """Storage utilities"""
 
 import os
+import re
 import logging
 from redis import Redis
 from zope.interface import implementer
@@ -116,3 +117,358 @@ class RedisStorageUtility:
         except Exception as err:
             logger.exception(err)
             return None
+
+    def delete(self, key):
+        """Delete a value from Redis by key."""
+        if not key:
+            return None
+
+        try:
+            with Redis(
+                host=self.server,
+                port=self.port,
+                db=self.db,
+                socket_connect_timeout=self.timeout,
+            ) as conn:
+                return conn.delete(key)
+        except Exception as err:
+            logger.exception(err)
+            return None
+
+    def scan(self, pattern="*", count=100):
+        """Scan Redis keys matching pattern.
+
+        Returns an iterator of keys.
+        Uses SCAN for efficient iteration over large datasets.
+        """
+        try:
+            with Redis(
+                host=self.server,
+                port=self.port,
+                db=self.db,
+                socket_connect_timeout=self.timeout,
+            ) as conn:
+                cursor = 0
+                while True:
+                    cursor, keys = conn.scan(cursor=cursor, match=pattern, count=count)
+                    for key in keys:
+                        yield key
+                    if cursor == 0:
+                        break
+        except Exception as err:
+            logger.exception(err)
+            return
+
+    def list_paginated(self, pattern="*", query=None, batch_size=25, batch_start=0, search_scope="old_url"):
+        """List redirects from Redis with efficient pagination.
+
+        Args:
+            pattern: Redis key pattern (default: "*")
+            query: Optional search query to filter URLs
+            batch_size: Number of items per page
+            batch_start: Offset for pagination
+            search_scope: Where to search - "old_url", "new_url", or "both" (default: "old_url")
+
+        Returns:
+            Tuple of (list of redirects, total count, None)
+        """
+        # If there's a query, use query-specific method
+        if query:
+            return self._list_with_query(pattern, query, batch_size, batch_start, search_scope)
+
+        # For non-query listing, collect all keys first
+        matching_keys = []
+
+        try:
+            with Redis(
+                host=self.server,
+                port=self.port,
+                db=self.db,
+                socket_connect_timeout=self.timeout,
+            ) as conn:
+                # Collect all keys matching pattern (keys only, no values)
+                cursor = 0
+                while True:
+                    cursor, keys = conn.scan(
+                        cursor=cursor,
+                        match=pattern,
+                        count=1000
+                    )
+
+                    for key in keys:
+                        try:
+                            key_str = key.decode("utf-8") if isinstance(key, bytes) else key
+                            matching_keys.append(key_str)
+                        except Exception as err:
+                            logger.warning(f"Error processing key {key}: {err}")
+                            continue
+
+                    if cursor == 0:
+                        break
+
+                # Sort keys alphabetically for consistent display
+                matching_keys.sort()
+
+                total = len(matching_keys)
+
+                # Fetch values only for the requested page
+                page_keys = matching_keys[batch_start : batch_start + batch_size]
+                items = []
+
+                for key_str in page_keys:
+                    try:
+                        value = conn.get(key_str)
+                        if value is not None:
+                            value_str = value.decode("utf-8") if isinstance(value, bytes) else value
+                            items.append({
+                                "path": key_str,
+                                "redirect-to": value_str,
+                            })
+                    except Exception as err:
+                        logger.warning(f"Error fetching value for key {key_str}: {err}")
+                        continue
+
+                return items, total, None
+
+        except Exception as err:
+            logger.exception(err)
+            return [], 0, None
+
+    def get_statistics(self, pattern="*", query=None):
+        """Get statistics for redirects matching pattern/query.
+
+        This is a separate method to allow async loading of statistics.
+        Uses Redis pipelining to batch GET operations for much better performance.
+        Searches on both old URL paths (keys) and new URL paths (values).
+
+        Args:
+            pattern: Redis key pattern (default: "*")
+            query: Optional search query to filter old or new URL paths (supports regex)
+
+        Returns:
+            Dict with statistics: total, internal, external, gone
+        """
+        stats = {
+            "total": 0,
+            "internal": 0,
+            "external": 0,
+            "gone": 0,
+        }
+
+        try:
+            with Redis(
+                host=self.server,
+                port=self.port,
+                db=self.db,
+                socket_connect_timeout=self.timeout,
+            ) as conn:
+                # Check if query is a regex pattern
+                is_regex = False
+                regex_pattern = None
+                if query:
+                    if query.startswith("^") or query.endswith("$") or any(c in query for c in [".*", ".+", "[", "]", "(", ")", "|"]):
+                        is_regex = True
+                        try:
+                            regex_pattern = re.compile(query)
+                        except re.error as err:
+                            logger.warning(f"Invalid regex pattern '{query}': {err}")
+                            is_regex = False
+
+                # Determine search pattern
+                if query and query.startswith("/") and not is_regex:
+                    search_pattern = f"*{query}*"
+                else:
+                    search_pattern = pattern
+
+                # Collect all keys
+                all_keys = []
+                cursor = 0
+
+                while True:
+                    cursor, keys = conn.scan(
+                        cursor=cursor,
+                        match=search_pattern,
+                        count=1000
+                    )
+                    all_keys.extend(keys)
+
+                    if cursor == 0:
+                        break
+
+                # Fetch all values in batches using Redis pipeline
+                BATCH_SIZE = 1000
+                for i in range(0, len(all_keys), BATCH_SIZE):
+                    batch_keys = all_keys[i:i+BATCH_SIZE]
+
+                    pipe = conn.pipeline()
+                    for key in batch_keys:
+                        pipe.get(key)
+                    values = pipe.execute()
+
+                    # Filter on both keys and values
+                    for key, value in zip(batch_keys, values):
+                        if value is not None:
+                            key_str = key.decode("utf-8") if isinstance(key, bytes) else key
+                            value_str = value.decode("utf-8") if isinstance(value, bytes) else value
+
+                            # Apply query filter on both old URL path (key) and new URL path (value)
+                            if query:
+                                key_match = False
+                                value_match = False
+
+                                if is_regex:
+                                    key_match = regex_pattern.search(key_str) is not None
+                                    value_match = regex_pattern.search(value_str) is not None
+                                else:
+                                    key_match = query in key_str
+                                    value_match = query in value_str
+
+                                # Skip if neither key nor value matches
+                                if not (key_match or value_match):
+                                    continue
+
+                            stats["total"] += 1
+
+                            if not value_str or value_str.strip() == "":
+                                stats["gone"] += 1
+                            elif value_str.startswith("http://") or value_str.startswith("https://"):
+                                stats["external"] += 1
+                            else:
+                                stats["internal"] += 1
+
+                return stats
+
+        except Exception as err:
+            logger.exception(err)
+            return stats
+
+    def _list_with_query(self, pattern, query, batch_size, batch_start, search_scope="old_url"):
+        """List redirects with query filter.
+
+        Searches on old URL paths (keys), new URL paths (values), or both using pipelining.
+        Collects all keys, fetches values in batches, filters based on scope, then paginates.
+
+        Args:
+            pattern: Redis key pattern
+            query: Search query to filter URLs (supports regex)
+            batch_size: Number of items per page
+            batch_start: Offset for pagination
+            search_scope: Where to search - "old_url", "new_url", or "both" (default: "old_url")
+
+        Returns:
+            Tuple of (list of redirects, total count, None)
+        """
+        matching_items = []
+        try:
+            with Redis(
+                host=self.server,
+                port=self.port,
+                db=self.db,
+                socket_connect_timeout=self.timeout,
+            ) as conn:
+                # Check if query is a regex pattern
+                is_regex = False
+                regex_pattern = None
+                if query:
+                    if query.startswith("^") or query.endswith("$") or any(c in query for c in [".*", ".+", "[", "]", "(", ")", "|"]):
+                        is_regex = True
+                        try:
+                            regex_pattern = re.compile(query)
+                        except re.error as err:
+                            logger.warning(f"Invalid regex pattern '{query}': {err}")
+                            is_regex = False
+
+                # Use Redis pattern matching for path-based queries
+                if query and query.startswith("/") and not is_regex:
+                    search_pattern = f"*{query}*"
+                else:
+                    search_pattern = pattern
+
+                cursor = 0
+                all_keys = []
+
+                # Step 1: Collect all keys
+                # Note: When searching values, we need all keys. Pipelining makes this fast.
+                while True:
+                    cursor, keys = conn.scan(
+                        cursor=cursor,
+                        match=search_pattern,
+                        count=1000
+                    )
+                    all_keys.extend(keys)
+
+                    if cursor == 0:
+                        break
+
+                # Step 2: Fetch all values in batches using pipeline
+                BATCH_SIZE = 1000
+                key_value_pairs = []
+
+                for i in range(0, len(all_keys), BATCH_SIZE):
+                    batch_keys = all_keys[i:i+BATCH_SIZE]
+
+                    pipe = conn.pipeline()
+                    for key in batch_keys:
+                        pipe.get(key)
+                    values = pipe.execute()
+
+                    # Pair keys with values
+                    for key, value in zip(batch_keys, values):
+                        if value is not None:
+                            key_str = key.decode("utf-8") if isinstance(key, bytes) else key
+                            value_str = value.decode("utf-8") if isinstance(value, bytes) else value
+                            key_value_pairs.append((key_str, value_str))
+
+                # Step 3: Filter based on search scope
+                for key_str, value_str in key_value_pairs:
+                    try:
+                        key_match = False
+                        value_match = False
+
+                        # Check matches based on scope
+                        if query:
+                            if is_regex:
+                                key_match = regex_pattern.search(key_str) is not None
+                                value_match = regex_pattern.search(value_str) is not None
+                            else:
+                                key_match = query in key_str
+                                value_match = query in value_str
+
+                            # Include based on search scope
+                            should_include = False
+                            if search_scope == "old_url":
+                                should_include = key_match
+                            elif search_scope == "new_url":
+                                should_include = value_match
+                            else:  # both
+                                should_include = key_match or value_match
+
+                            if should_include:
+                                matching_items.append({
+                                    "path": key_str,
+                                    "redirect-to": value_str,
+                                })
+                        else:
+                            # No query, include all
+                            matching_items.append({
+                                "path": key_str,
+                                "redirect-to": value_str,
+                            })
+
+                    except Exception as err:
+                        logger.warning(f"Error processing key {key_str}: {err}")
+                        continue
+
+                # Sort by old URL path (key) alphabetically
+                matching_items.sort(key=lambda x: x["path"])
+
+                total = len(matching_items)
+
+                # Step 4: Paginate the results
+                page_items = matching_items[batch_start : batch_start + batch_size]
+
+                return page_items, total, None
+
+        except Exception as err:
+            logger.exception(err)
+            return [], 0, None

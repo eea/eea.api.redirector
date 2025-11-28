@@ -29,6 +29,8 @@ output.xml
 package.json
 pip-selfcheck.json
 report.html
+pyvenv.cfg
+etc/
 .vscode/
 .tox/
 reports/
