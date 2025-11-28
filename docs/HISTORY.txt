@@ -5,7 +5,7 @@ Changelog
 ---------------------------
 * Change: Release [avoinea]
 
-1.0-dev0 - (unreleased)
+1.0 - (2025-11-28)
 -----------------------
 
 * Initial release.
