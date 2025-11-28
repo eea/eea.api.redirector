@@ -18,7 +18,7 @@ Main features
 
 1. **Redis-backed redirects**: Store and retrieve URL redirects from Redis in addition to Plone's database
 2. **REST API endpoints**: Full CRUD operations for managing redirects via ``@redirects`` endpoint
-3. **Control panel integration**: Web UI for managing redirects (requires volto-redirector frontend)
+3. **Control panel integration**: Web UI for managing redirects (requires `volto-redirector <https://github.com/eea/volto-redirector>`_ frontend)
 4. **High-performance statistics**: Redis pipelining for calculating statistics on 100k+ redirects in ~2 seconds
 5. **Advanced search**: Search both old and new URLs using simple or regex patterns (e.g., ``^/publications``, ``example.com``)
 6. **Fallback mechanism**: Automatically checks Redis when redirects are not found in Plone storage
@@ -224,7 +224,7 @@ HTTP 410 Gone Support
 
 Redirects with empty targets (``redirect-to: ""``) return HTTP 410 Gone status, indicating the resource has been permanently deleted. This is the proper HTTP status code for removed content that will not return.
 
-The frontend (volto-redirector) can display a custom 410 Gone page with:
+The frontend (`volto-redirector <https://github.com/eea/volto-redirector>`_) can display a custom 410 Gone page with:
 
 * Information about the deleted resource
 * Link to Wayback Machine for archived versions
@@ -234,7 +234,8 @@ The frontend (volto-redirector) can display a custom 410 Gone page with:
 Source code
 ===========
 
-- `Plone 6 on github <https://github.com/eea/eea.api.redirector>`_
+- `eea.api.redirector (backend) <https://github.com/eea/eea.api.redirector>`_
+- `volto-redirector (frontend) <https://github.com/eea/volto-redirector>`_
 
 
 Eggs repository
