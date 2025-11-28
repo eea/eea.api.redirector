@@ -5,6 +5,7 @@ import logging
 from redis import Redis
 from zope.interface import implementer
 from zope.component import getUtility
+from zope.component.hooks import getSite
 from eea.api.redirector.interfaces import IStorageUtility
 
 logger = logging.getLogger("eea.api.redirector")
@@ -21,10 +22,18 @@ def patched_redirection_storage_get(self, old_path, default=None):
 
     # Check Redis storage
     rs = getUtility(IStorageUtility)
+    site_id = getSite().getId()
+    if old_path.startswith("/" + site_id):
+        old_path = old_path[len(site_id) + 1 :]
     value = rs.get(old_path)
     if value:
         logger.debug("Found redis value for %s: %s", old_path, value)
-        return value.decode("utf-8")
+        value = value.decode("utf-8")
+        if value.startswith("http://") or value.startswith("https://"):
+            return value
+        if value.startswith("/") and not value.startswith("/" + site_id):
+            value = "/" + site_id + value
+        return value
     return default
 
 
