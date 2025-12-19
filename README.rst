@@ -27,7 +27,8 @@ Main features
 9. **Proper HTTP status codes**: Returns 410 Gone for permanently deleted resources (empty redirect targets)
 10. **Redirect loop prevention**: Built-in protection against circular redirects
 11. **Easy configuration**: Simple environment variable setup for Redis connections
-12. **Non-intrusive**: Extends existing Plone functionality without replacing it
+12. **CSV import endpoint**: Upload CSV files directly to the backend for bulk imports
+13. **Non-intrusive**: Extends existing Plone functionality without replacing it
 
 
 Install
@@ -199,6 +200,27 @@ Response::
 
     {
       "success": 1,
+      "failed": []
+    }
+
+**POST /@redirects-import**
+
+Import redirects from a CSV file upload.
+
+Request:
+
+* Multipart form-data with ``file`` field containing the CSV file
+
+Example::
+
+    curl -u admin:admin -F "file=@redirects.csv" http://localhost:8080/Plone/@redirects-import
+
+Response::
+
+    {
+      "type": "success",
+      "success_count": 10,
+      "failed_count": 0,
       "failed": []
     }
 
