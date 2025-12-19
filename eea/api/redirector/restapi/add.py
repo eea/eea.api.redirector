@@ -48,14 +48,20 @@ def add_redirects(storage, redirects):
         # Validate paths
         if not path.startswith("/"):
             failed_redirects.append(
-                {"redirect": str(redirect), "error": f"Path must start with '/': {path}"}
+                {
+                    "redirect": str(redirect),
+                    "error": f"Path must start with '/': {path}",
+                }
             )
             continue
 
         # Prevent self-redirects (but allow empty target for Gone)
         if target and path == target:
             failed_redirects.append(
-                {"redirect": str(redirect), "error": "Path and target cannot be the same"}
+                {
+                    "redirect": str(redirect),
+                    "error": "Path and target cannot be the same",
+                }
             )
             continue
 
