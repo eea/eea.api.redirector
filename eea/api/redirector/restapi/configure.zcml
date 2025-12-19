@@ -37,6 +37,15 @@
     permission="cmf.ManagePortal"
     />
 
+  <!-- POST endpoint to import Redis redirects from CSV -->
+  <plone:service
+    method="POST"
+    name="@redirects-import"
+    for="Products.CMFCore.interfaces.ISiteRoot"
+    factory=".import_csv.RedisRedirectsCSVImport"
+    permission="cmf.ManagePortal"
+    />
+
   <!-- GET endpoint for redirect statistics -->
   <plone:service
     method="GET"
