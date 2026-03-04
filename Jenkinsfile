@@ -3,7 +3,7 @@ pipeline {
 
   environment {
         GIT_NAME = "eea.api.redirector"
-        SONARQUBE_TAGS = "www.eea.europa.eu,demo-www.eea.europa.eu,www.eea.europa.eu-en"
+        SONARQUBE_TAGS = "demo-www.eea.europa.eu,www.eea.europa.eu-en,www.eea.europa.eu"
     }
 
   stages {
