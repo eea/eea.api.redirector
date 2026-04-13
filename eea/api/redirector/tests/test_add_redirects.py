@@ -5,7 +5,6 @@ These tests cover add_redirects validation logic with a mock storage:
 """
 
 import unittest
-from unittest.mock import MagicMock
 from eea.api.redirector.restapi.add import add_redirects
 
 
