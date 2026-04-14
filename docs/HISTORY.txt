@@ -1,6 +1,10 @@
 Changelog
 =========
 
+0.3 - (2026-04-14)
+---------------------------
+* Change: Add unit tests for add_redirects validation logic [avoinea]
+
 0.2 - (2025-12-20)
 ------------------------
 * Feature: CSV import endpoint (@redirects-import) for server-side processing
