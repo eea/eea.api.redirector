@@ -1,6 +1,9 @@
 Changelog
 =========
 
+0.4-dev0 - (unreleased)
+---------------------------
+
 0.3 - (2026-04-14)
 ---------------------------
 * Change: Add unit tests for add_redirects validation logic [avoinea]
