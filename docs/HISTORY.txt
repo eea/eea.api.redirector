@@ -1,6 +1,11 @@
 Changelog
 =========
 
+0.4 - (2026-07-13)
+---------------------------
+* Change: fix: SonarQube report - refs #305404
+  [avoinea]
+
 0.3 - (2026-04-14)
 ---------------------------
 * Change: Add unit tests for add_redirects validation logic [avoinea]
